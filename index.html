@@ -1,0 +1,701 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Truck, 
+  Package, 
+  Plus, 
+  Trash2, 
+  Save, 
+  Share2, 
+  Settings, 
+  RotateCcw, 
+  Download, 
+  X, 
+  Menu,
+  ChevronRight,
+  Calculator,
+  Calendar,
+  ArrowRightLeft,
+  AlertTriangle,
+  CheckCircle,
+  Info,
+  Image as ImageIcon,
+  FileText
+} from 'lucide-react';
+
+// --- External Components ---
+
+const Card = ({ children, className = "" }) => (
+  <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, onClick, variant = "primary", className = "", disabled = false, icon: Icon }) => {
+  const baseStyle = "flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none";
+  const variants = {
+    primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-200",
+    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
+    success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200",
+    outline: "border-2 border-slate-200 text-slate-600 hover:border-slate-300 bg-transparent"
+  };
+
+  return (
+    <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className}`}>
+      {Icon && <Icon size={18} />}
+      {children}
+    </button>
+  );
+};
+
+const InputGroup = ({ label, value, onChange, placeholder, type = "text", min }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</label>
+    <input
+      type={type}
+      min={min}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-800 font-medium"
+    />
+  </div>
+);
+
+const PromptDialog = ({ title, placeholder, onConfirm, onCancel }) => {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl scale-100 animate-scale-in">
+        <h3 className="text-lg font-bold text-slate-800 mb-4">{title}</h3>
+        <input 
+          autoFocus
+          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-6 font-medium text-slate-700"
+          placeholder={placeholder}
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && value.trim()) {
+              onConfirm(value.trim());
+            }
+          }}
+        />
+        <div className="flex gap-3 justify-end">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button 
+            variant="primary" 
+            disabled={!value.trim()} 
+            onClick={() => onConfirm(value.trim())}
+          >
+            Add
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Main App ---
+
+export default function App() {
+  // --- State ---
+  
+  // Default Data
+  const defaultVehicles = [
+    { id: 'v1', name: 'Truck MH-12' },
+    { id: 'v2', name: 'Tempo MH-14' }
+  ];
+  
+  const defaultProducts = [
+    { id: 'p1', name: 'Cola 200ml' },
+    { id: 'p2', name: 'Orange 500ml' },
+    { id: 'p3', name: 'Water 1L' },
+    { id: 'p4', name: 'Chips Salted' }
+  ];
+
+  // Load from LocalStorage or use defaults
+  const [vehicles, setVehicles] = useState(() => {
+    const saved = localStorage.getItem('hariom_vehicles');
+    return saved ? JSON.parse(saved) : defaultVehicles;
+  });
+
+  const [products, setProducts] = useState(() => {
+    const saved = localStorage.getItem('hariom_products');
+    return saved ? JSON.parse(saved) : defaultProducts;
+  });
+
+  // Stock Data Structure
+  const [stockData, setStockData] = useState(() => {
+    const saved = localStorage.getItem('hariom_stock');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [activeVehicleId, setActiveVehicleId] = useState(vehicles[0]?.id);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  
+  // UI States
+  const [notification, setNotification] = useState(null); 
+  const [confirmModal, setConfirmModal] = useState(null); 
+  const [promptModal, setPromptModal] = useState(null);
+
+  const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
+  const reportRef = useRef(null);
+
+  // --- Effects ---
+
+  useEffect(() => {
+    localStorage.setItem('hariom_vehicles', JSON.stringify(vehicles));
+    localStorage.setItem('hariom_products', JSON.stringify(products));
+    localStorage.setItem('hariom_stock', JSON.stringify(stockData));
+  }, [vehicles, products, stockData]);
+
+  useEffect(() => {
+    const loadScript = (src) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      document.body.appendChild(script);
+      return script;
+    };
+
+    const s1 = loadScript("https://html2canvas.hertzen.com/dist/html2canvas.min.js");
+    const s2 = loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+
+    return () => {
+      if(document.body.contains(s1)) document.body.removeChild(s1);
+      if(document.body.contains(s2)) document.body.removeChild(s2);
+    }
+  }, []);
+
+  // --- Helpers ---
+
+  const showToast = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const requestConfirmation = (message, onConfirm) => {
+    setConfirmModal({ message, onConfirm });
+  };
+
+  const requestPrompt = (title, placeholder, onConfirm) => {
+    setPromptModal({ title, placeholder, onConfirm });
+  };
+
+  const getStock = (vid, pid) => {
+    return stockData[vid]?.[pid] || { opening: 0, added: 0, sold: 0 };
+  };
+
+  const updateStock = (vid, pid, field, value) => {
+    setStockData(prev => {
+      const vData = prev[vid] || {};
+      const pData = vData[pid] || { opening: 0, added: 0, sold: 0 };
+      
+      const numValue = value === '' ? 0 : parseInt(value, 10);
+      
+      return {
+        ...prev,
+        [vid]: {
+          ...vData,
+          [pid]: { ...pData, [field]: numValue }
+        }
+      };
+    });
+  };
+
+  // --- Actions ---
+
+  const handleEndDay = () => {
+    requestConfirmation(
+      "Ready to swap? This will move today's REMAINING stock to tomorrow's OPENING stock.",
+      () => {
+        setStockData(prev => {
+          const newStock = { ...prev };
+          vehicles.forEach(v => {
+            if (!newStock[v.id]) return;
+            products.forEach(p => {
+              if (newStock[v.id][p.id]) {
+                const current = newStock[v.id][p.id];
+                const remaining = (current.opening || 0) + (current.added || 0) - (current.sold || 0);
+                newStock[v.id][p.id] = {
+                  opening: remaining > 0 ? remaining : 0,
+                  added: 0,
+                  sold: 0
+                };
+              }
+            });
+          });
+          return newStock;
+        });
+        showToast("Success! Remaining stock is now Opening stock.");
+      }
+    );
+  };
+
+  const handleFullClear = () => {
+    requestConfirmation(
+      "WARNING: This will delete ALL stock data for all vehicles. This cannot be undone.",
+      () => {
+        setStockData({});
+        showToast("All data cleared.", "error");
+      }
+    );
+  };
+
+  const handleShare = async (type) => {
+    if (!window.html2canvas || (type === 'pdf' && !window.jspdf)) {
+      showToast("Generators loading... please wait.", "error");
+      return;
+    }
+
+    try {
+      showToast("Generating report...", "success");
+      const canvas = await window.html2canvas(reportRef.current, {
+        scale: 2, 
+        backgroundColor: "#ffffff",
+      });
+
+      const fileName = `HariOm_Report_${activeVehicleId}_${currentDate}`;
+      
+      if (type === 'image') {
+        canvas.toBlob(async (blob) => {
+          const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: 'Hari Om Sales Report',
+                text: `Daily Report for ${activeVehicleId} - ${currentDate}`
+              });
+              showToast("Shared successfully!");
+            } catch (error) {
+              if (error.name !== 'AbortError') {
+                 const link = document.createElement('a');
+                 link.download = `${fileName}.png`;
+                 link.href = canvas.toDataURL();
+                 link.click();
+              }
+            }
+          } else {
+             const link = document.createElement('a');
+             link.download = `${fileName}.png`;
+             link.href = canvas.toDataURL();
+             link.click();
+             showToast("Downloaded Image");
+          }
+        });
+      } else if (type === 'pdf') {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width * 0.75, canvas.height * 0.75]
+        });
+        
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
+        const pdfBlob = pdf.output('blob');
+        const file = new File([pdfBlob], `${fileName}.pdf`, { type: 'application/pdf' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Hari Om Sales Report',
+              text: `Daily Report for ${activeVehicleId} - ${currentDate}`
+            });
+            showToast("Shared successfully!");
+          } catch (error) {
+             if (error.name !== 'AbortError') pdf.save(`${fileName}.pdf`);
+          }
+        } else {
+          pdf.save(`${fileName}.pdf`);
+          showToast("Downloaded PDF");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to generate file.", "error");
+    }
+  };
+
+  // --- Render Functions (Defined inside App but without Arrow Wrapper to prevent re-mount) ---
+
+  const renderNotificationToast = () => {
+    if (!notification) return null;
+    const isError = notification.type === 'error';
+    return (
+      <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 px-6 py-3 rounded-full shadow-xl animate-bounce-in ${isError ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
+        {isError ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
+        <span className="font-medium">{notification.message}</span>
+      </div>
+    );
+  };
+
+  const renderConfirmationDialog = () => {
+    if (!confirmModal) return null;
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl scale-100 animate-scale-in">
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Confirm Action</h3>
+          <p className="text-slate-600 mb-6">{confirmModal.message}</p>
+          <div className="flex gap-3 justify-end">
+            <Button variant="secondary" onClick={() => setConfirmModal(null)}>Cancel</Button>
+            <Button variant="primary" onClick={() => {
+              confirmModal.onConfirm();
+              setConfirmModal(null);
+            }}>Confirm</Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSettingsModal = () => (
+    <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 backdrop-blur-sm">
+      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+          <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
+            <Settings className="text-slate-500" /> Settings
+          </h2>
+          <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="p-4 space-y-6">
+          <section>
+            <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <Truck size={18} /> Vehicles
+            </h3>
+            <div className="space-y-2">
+              {vehicles.map(v => (
+                <div key={v.id} className="flex gap-2">
+                  <input 
+                    className="flex-1 px-3 py-2 border rounded-lg bg-slate-50"
+                    value={v.name}
+                    onChange={(e) => {
+                      const newVehicles = vehicles.map(vh => vh.id === v.id ? {...vh, name: e.target.value} : vh);
+                      setVehicles(newVehicles);
+                    }}
+                  />
+                  <button 
+                    onClick={() => {
+                      if(vehicles.length <= 1) {
+                         showToast("Must have at least one vehicle", "error");
+                         return;
+                      }
+                      requestConfirmation("Delete this vehicle? All its stock data will be lost.", () => {
+                        setVehicles(vehicles.filter(vh => vh.id !== v.id));
+                        if(activeVehicleId === v.id) setActiveVehicleId(vehicles[0].id);
+                        showToast("Vehicle deleted");
+                      });
+                    }}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+              <Button 
+                variant="secondary" 
+                className="w-full mt-2"
+                icon={Plus}
+                onClick={() => {
+                  requestPrompt(
+                    "Add New Vehicle",
+                    "Enter vehicle name (e.g., Truck 5)",
+                    (name) => {
+                      setVehicles([...vehicles, { id: `v${Date.now()}`, name }]);
+                      showToast("Vehicle added!");
+                      setPromptModal(null);
+                    }
+                  );
+                }}
+              >
+                Add Vehicle
+              </Button>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <Package size={18} /> Products
+            </h3>
+            <div className="space-y-2">
+              {products.map(p => (
+                <div key={p.id} className="flex gap-2">
+                  <input 
+                    className="flex-1 px-3 py-2 border rounded-lg bg-slate-50"
+                    value={p.name}
+                    onChange={(e) => {
+                      const newProds = products.map(pr => pr.id === p.id ? {...pr, name: e.target.value} : pr);
+                      setProducts(newProds);
+                    }}
+                  />
+                  <button 
+                    onClick={() => {
+                      requestConfirmation("Delete this product? It will be removed from all vehicles.", () => {
+                        setProducts(products.filter(pr => pr.id !== p.id));
+                        showToast("Product deleted");
+                      });
+                    }}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+              <Button 
+                variant="secondary" 
+                className="w-full mt-2"
+                icon={Plus}
+                onClick={() => {
+                  requestPrompt(
+                    "Add New Product",
+                    "Enter product name (e.g., Mango Juice)",
+                    (name) => {
+                      setProducts([...products, { id: `p${Date.now()}`, name }]);
+                      showToast("Product added!");
+                      setPromptModal(null);
+                    }
+                  );
+                }}
+              >
+                Add Product
+              </Button>
+            </div>
+          </section>
+
+          <section className="pt-4 border-t border-slate-100">
+             <Button variant="danger" className="w-full" onClick={handleFullClear} icon={RotateCcw}>
+               Factory Reset (Clear All Data)
+             </Button>
+          </section>
+        </div>
+      </Card>
+    </div>
+  );
+
+  const renderReportModal = () => {
+    const activeVehicleName = vehicles.find(v => v.id === activeVehicleId)?.name;
+    const formattedDate = new Date(currentDate).toLocaleDateString('en-IN', {
+        weekday: 'long', year: 'numeric', month: 'short', day: 'numeric'
+    });
+    
+    return (
+      <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto">
+        <div className="w-full max-w-2xl">
+          <div className="flex flex-wrap justify-end mb-4 gap-2">
+            <Button onClick={() => handleShare('image')} icon={ImageIcon} variant="success">Share Image</Button>
+            <Button onClick={() => handleShare('pdf')} icon={FileText} variant="primary">Share PDF</Button>
+            <Button onClick={() => setIsReportModalOpen(false)} variant="secondary" className="!bg-white/10 !text-white !border-white/20">Close</Button>
+          </div>
+
+          <div ref={reportRef} className="bg-white p-6 md:p-8 rounded-xl shadow-2xl">
+            <div className="text-center border-b-2 border-slate-800 pb-4 mb-4">
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 uppercase tracking-wide">Hari Om Enterprises</h1>
+              <p className="text-slate-500 font-medium mt-1">Daily Delivery Report</p>
+            </div>
+
+            <div className="flex justify-between items-end mb-6 text-sm md:text-base">
+              <div>
+                <p className="text-slate-500">Vehicle</p>
+                <p className="font-bold text-lg text-slate-800">{activeVehicleName}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-slate-500">Date</p>
+                <p className="font-bold text-slate-800">{formattedDate}</p>
+              </div>
+            </div>
+
+            <table className="w-full text-left text-sm md:text-base border-collapse">
+              <thead>
+                <tr className="border-b-2 border-slate-200">
+                  <th className="py-2 pl-1 font-bold text-slate-400 w-8">#</th>
+                  <th className="py-2 pl-1 font-bold text-slate-700">Item</th>
+                  <th className="py-2 text-center font-bold text-slate-500">Open</th>
+                  <th className="py-2 text-center font-bold text-blue-600">Add</th>
+                  <th className="py-2 text-center font-bold text-red-600">Sold</th>
+                  <th className="py-2 pr-1 text-right font-bold text-emerald-700">Rem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {products.map((p, index) => {
+                  const s = getStock(activeVehicleId, p.id);
+                  const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0);
+                  if (s.opening === 0 && s.added === 0 && s.sold === 0 && remaining === 0) return null;
+                  
+                  return (
+                    <tr key={p.id}>
+                      <td className="py-3 pl-1 font-bold text-slate-400">{index + 1}</td>
+                      <td className="py-3 pl-1 font-medium text-slate-800">{p.name}</td>
+                      <td className="py-3 text-center text-slate-500">{s.opening}</td>
+                      <td className="py-3 text-center font-medium text-blue-600">{s.added > 0 ? `+${s.added}` : '-'}</td>
+                      <td className="py-3 text-center font-medium text-red-600">{s.sold > 0 ? s.sold : '-'}</td>
+                      <td className="py-3 pr-1 text-right font-bold text-emerald-700">{remaining}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center">
+               <p className="text-xs text-slate-400">Generated by Hari Om Sales App</p>
+               <div className="text-right">
+                 <p className="font-bold text-slate-800">Signature</p>
+                 <div className="h-8 w-24 border-b border-slate-300 mt-2"></div>
+               </div>
+            </div>
+          </div>
+          <p className="text-white/60 text-center text-sm mt-4">Tip: If Sharing fails, the file will automatically download.</p>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Main Render ---
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans pb-20 md:pb-0">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-blue-700 to-blue-900 text-white p-4 shadow-lg sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Hari Om Enterprises</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <Calendar size={14} className="text-blue-200"/> 
+              <input 
+                type="date" 
+                value={currentDate} 
+                onChange={(e) => setCurrentDate(e.target.value)}
+                className="bg-white/10 border border-white/20 rounded px-2 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/50"
+              />
+            </div>
+          </div>
+          <button onClick={() => setIsSettingsOpen(true)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <Settings size={20} />
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto p-4 space-y-6">
+        
+        {/* Vehicle Selector */}
+        <div className="flex overflow-x-auto pb-2 gap-3 no-scrollbar">
+          {vehicles.map(v => (
+            <button
+              key={v.id}
+              onClick={() => setActiveVehicleId(v.id)}
+              className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl border transition-all shadow-sm ${
+                activeVehicleId === v.id
+                  ? 'bg-blue-600 border-blue-600 text-white ring-2 ring-blue-200 ring-offset-1'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+              }`}
+            >
+              <Truck size={18} className={activeVehicleId === v.id ? 'text-blue-200' : 'text-slate-400'} />
+              <span className="font-semibold whitespace-nowrap">{v.name}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Action Bar */}
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="success" icon={Share2} onClick={() => setIsReportModalOpen(true)}>
+             Report
+          </Button>
+          <Button variant="primary" icon={ArrowRightLeft} onClick={handleEndDay}>
+            Swap to Opening
+          </Button>
+        </div>
+
+        {/* Inventory List */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {products.map((p, index) => {
+            const s = getStock(activeVehicleId, p.id);
+            const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0);
+            
+            return (
+              <Card key={p.id} className="p-4 flex flex-col gap-3 relative overflow-hidden group">
+                 {/* Top Row: Name and Remaining Big Display */}
+                 <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                       <span className="text-sm font-bold text-slate-400 min-w-[20px]">#{index + 1}</span>
+                       <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+                         {p.name.charAt(0)}
+                       </div>
+                       <h3 className="font-bold text-slate-800">{p.name}</h3>
+                    </div>
+                    <div className="text-right">
+                       <span className="text-xs text-slate-400 font-semibold uppercase">Remaining</span>
+                       <div className={`text-2xl font-bold ${remaining < 5 ? 'text-red-500' : 'text-emerald-600'}`}>
+                         {remaining}
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Divider */}
+                 <div className="h-px bg-slate-100 w-full my-1"></div>
+
+                 {/* Inputs Grid */}
+                 <div className="grid grid-cols-3 gap-3 items-end">
+                    
+                    {/* Opening (Now Editable) */}
+                    <InputGroup
+                      label="Opening"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={s.opening || ''}
+                      onChange={(e) => updateStock(activeVehicleId, p.id, 'opening', e.target.value)}
+                    />
+
+                    {/* Added */}
+                    <InputGroup 
+                      label="Added (+)" 
+                      type="number" 
+                      min="0"
+                      placeholder="0"
+                      value={s.added || ''}
+                      onChange={(e) => updateStock(activeVehicleId, p.id, 'added', e.target.value)}
+                    />
+
+                    {/* Sold */}
+                    <InputGroup 
+                      label="Sold (-)" 
+                      type="number" 
+                      min="0"
+                      placeholder="0"
+                      value={s.sold || ''}
+                      onChange={(e) => updateStock(activeVehicleId, p.id, 'sold', e.target.value)}
+                    />
+                 </div>
+              </Card>
+            );
+          })}
+        </div>
+      </main>
+
+      {/* Footer / Instructions */}
+      <footer className="p-6 text-center text-slate-400 text-sm max-w-5xl mx-auto">
+        <p>You can now manually edit Opening stock directly.</p>
+        <p className="mt-2 text-xs">Hari Om Enterprises © {new Date().getFullYear()}</p>
+      </footer>
+
+      {/* Modals & Overlays */}
+      {isSettingsOpen && renderSettingsModal()}
+      {isReportModalOpen && renderReportModal()}
+      {renderConfirmationDialog()}
+      {promptModal && (
+        <PromptDialog 
+           title={promptModal.title}
+           placeholder={promptModal.placeholder}
+           onConfirm={promptModal.onConfirm}
+           onCancel={() => setPromptModal(null)}
+        />
+      )}
+      {renderNotificationToast()}
+    </div>
+  );
+}
