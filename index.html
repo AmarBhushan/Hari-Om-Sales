@@ -261,14 +261,17 @@
                 try {
                     showToast("Generating report...", "success");
                     const canvas = await window.html2canvas(reportRef.current, { scale: 2, backgroundColor: "#ffffff" });
-                    const fileName = `HariOm_Report_${activeVehicleId}_${currentDate}`;
+                    
+                    // --- CHANGED: Updated filename format ---
+                    const activeVehicleName = vehicles.find(v => v.id === activeVehicleId)?.name || 'Vehicle';
+                    const fileName = `Sales Report - ${activeVehicleName} - ${currentDate}`;
                     
                     if (type === 'image') {
                         canvas.toBlob(async (blob) => {
                             const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
                             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                                 try {
-                                    await navigator.share({ files: [file], title: 'Hari Om Sales Report', text: `Daily Report for ${activeVehicleId}` });
+                                    await navigator.share({ files: [file], title: 'Hari Om Sales Report', text: `Daily Report for ${activeVehicleName}` });
                                     showToast("Shared successfully!");
                                 } catch (error) {
                                     if (error.name !== 'AbortError') {
@@ -287,7 +290,7 @@
                         const file = new File([pdfBlob], `${fileName}.pdf`, { type: 'application/pdf' });
                         if (navigator.canShare && navigator.canShare({ files: [file] })) {
                             try {
-                                await navigator.share({ files: [file], title: 'Hari Om Sales Report', text: `Daily Report for ${activeVehicleId}` });
+                                await navigator.share({ files: [file], title: 'Hari Om Sales Report', text: `Daily Report for ${activeVehicleName}` });
                                 showToast("Shared successfully!");
                             } catch (error) { if (error.name !== 'AbortError') pdf.save(`${fileName}.pdf`); }
                         } else {
@@ -297,7 +300,7 @@
                 } catch (err) { console.error(err); showToast("Failed to generate file.", "error"); }
             };
 
-            // --- Render Helpers (Functions to keep context) ---
+            // --- Render Helpers ---
 
             const renderNotificationToast = () => {
                 if (!notification) return null;
@@ -369,6 +372,19 @@
             const renderReportModal = () => {
                 const activeVehicleName = vehicles.find(v => v.id === activeVehicleId)?.name;
                 const formattedDate = new Date(currentDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+                
+                // --- CHANGED: Calculate Totals ---
+                const totals = products.reduce((acc, p) => {
+                    const s = getStock(activeVehicleId, p.id);
+                    const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0);
+                    return {
+                        opening: acc.opening + (s.opening || 0),
+                        added: acc.added + (s.added || 0),
+                        sold: acc.sold + (s.sold || 0),
+                        remaining: acc.remaining + remaining
+                    };
+                }, { opening: 0, added: 0, sold: 0, remaining: 0 });
+
                 return (
                     <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto">
                         <div className="w-full max-w-2xl">
@@ -389,6 +405,17 @@
                                 <table className="w-full text-left text-sm md:text-base border-collapse">
                                     <thead><tr className="border-b-2 border-slate-200"><th className="py-2 pl-1 font-bold text-slate-400 w-8">#</th><th className="py-2 pl-1 font-bold text-slate-700">Item</th><th className="py-2 text-center font-bold text-slate-500">Open</th><th className="py-2 text-center font-bold text-blue-600">Add</th><th className="py-2 text-center font-bold text-red-600">Sold</th><th className="py-2 pr-1 text-right font-bold text-emerald-700">Rem</th></tr></thead>
                                     <tbody className="divide-y divide-slate-100">{products.map((p, index) => { const s = getStock(activeVehicleId, p.id); const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0); if (s.opening === 0 && s.added === 0 && s.sold === 0 && remaining === 0) return null; return (<tr key={p.id}><td className="py-3 pl-1 font-bold text-slate-400">{index + 1}</td><td className="py-3 pl-1 font-medium text-slate-800">{p.name}</td><td className="py-3 text-center text-slate-500">{s.opening}</td><td className="py-3 text-center font-medium text-blue-600">{s.added > 0 ? `+${s.added}` : '-'}</td><td className="py-3 text-center font-medium text-red-600">{s.sold > 0 ? s.sold : '-'}</td><td className="py-3 pr-1 text-right font-bold text-emerald-700">{remaining}</td></tr>); })}</tbody>
+                                    
+                                    {/* --- CHANGED: Added Total Footer --- */}
+                                    <tfoot>
+                                        <tr className="border-t-2 border-slate-800 font-bold text-slate-900 bg-slate-50">
+                                            <td className="py-3 pl-1" colSpan="2">TOTAL</td>
+                                            <td className="py-3 text-center">{totals.opening}</td>
+                                            <td className="py-3 text-center text-blue-600">{totals.added}</td>
+                                            <td className="py-3 text-center text-red-600">{totals.sold}</td>
+                                            <td className="py-3 pr-1 text-right text-emerald-700">{totals.remaining}</td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                                 <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center"><p className="text-xs text-slate-400">Generated by Hari Om Sales App</p><div className="text-right"><p className="font-bold text-slate-800">Signature</p><div className="h-8 w-24 border-b border-slate-300 mt-2"></div></div></div>
                             </div>
