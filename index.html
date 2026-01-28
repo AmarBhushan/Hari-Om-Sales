@@ -262,7 +262,6 @@
                     showToast("Generating report...", "success");
                     const canvas = await window.html2canvas(reportRef.current, { scale: 2, backgroundColor: "#ffffff" });
                     
-                    // --- CHANGED: Updated filename format ---
                     const activeVehicleName = vehicles.find(v => v.id === activeVehicleId)?.name || 'Vehicle';
                     const fileName = `Sales Report - ${activeVehicleName} - ${currentDate}`;
                     
@@ -373,7 +372,6 @@
                 const activeVehicleName = vehicles.find(v => v.id === activeVehicleId)?.name;
                 const formattedDate = new Date(currentDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
                 
-                // --- CHANGED: Calculate Totals ---
                 const totals = products.reduce((acc, p) => {
                     const s = getStock(activeVehicleId, p.id);
                     const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0);
@@ -385,39 +383,41 @@
                     };
                 }, { opening: 0, added: 0, sold: 0, remaining: 0 });
 
+                // --- CHANGED: Updated Modal Wrapper Structure ---
                 return (
-                    <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 backdrop-blur-md overflow-y-auto">
-                        <div className="w-full max-w-2xl">
-                            <div className="flex flex-wrap justify-end mb-4 gap-2">
-                                <Button onClick={() => handleShare('image')} icon={Icons.Image} variant="success">Share Image</Button>
-                                <Button onClick={() => handleShare('pdf')} icon={Icons.FileText} variant="primary">Share PDF</Button>
-                                <Button onClick={() => setIsReportModalOpen(false)} variant="secondary" className="!bg-white/10 !text-white !border-white/20">Close</Button>
-                            </div>
-                            <div ref={reportRef} className="bg-white p-6 md:p-8 rounded-xl shadow-2xl">
-                                <div className="text-center border-b-2 border-slate-800 pb-4 mb-4">
-                                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 uppercase tracking-wide">Hari Om Enterprises</h1>
-                                    <p className="text-slate-500 font-medium mt-1">Daily Delivery Report</p>
+                    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md">
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <div className="w-full max-w-2xl relative">
+                                <div className="flex flex-wrap justify-end mb-4 gap-2">
+                                    <Button onClick={() => handleShare('image')} icon={Icons.Image} variant="success">Share Image</Button>
+                                    <Button onClick={() => handleShare('pdf')} icon={Icons.FileText} variant="primary">Share PDF</Button>
+                                    <Button onClick={() => setIsReportModalOpen(false)} variant="secondary" className="!bg-white/10 !text-white !border-white/20">Close</Button>
                                 </div>
-                                <div className="flex justify-between items-end mb-6 text-sm md:text-base">
-                                    <div><p className="text-slate-500">Vehicle</p><p className="font-bold text-lg text-slate-800">{activeVehicleName}</p></div>
-                                    <div className="text-right"><p className="text-slate-500">Date</p><p className="font-bold text-slate-800">{formattedDate}</p></div>
+                                <div ref={reportRef} className="bg-white p-6 md:p-8 rounded-xl shadow-2xl">
+                                    <div className="text-center border-b-2 border-slate-800 pb-4 mb-4">
+                                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 uppercase tracking-wide">Hari Om Enterprises</h1>
+                                        <p className="text-slate-500 font-medium mt-1">Daily Delivery Report</p>
+                                    </div>
+                                    <div className="flex justify-between items-end mb-6 text-sm md:text-base">
+                                        <div><p className="text-slate-500">Vehicle</p><p className="font-bold text-lg text-slate-800">{activeVehicleName}</p></div>
+                                        <div className="text-right"><p className="text-slate-500">Date</p><p className="font-bold text-slate-800">{formattedDate}</p></div>
+                                    </div>
+                                    <table className="w-full text-left text-sm md:text-base border-collapse">
+                                        <thead><tr className="border-b-2 border-slate-200"><th className="py-2 pl-1 font-bold text-slate-400 w-8">#</th><th className="py-2 pl-1 font-bold text-slate-700">Item</th><th className="py-2 text-center font-bold text-slate-500">Open</th><th className="py-2 text-center font-bold text-blue-600">Add</th><th className="py-2 text-center font-bold text-red-600">Sold</th><th className="py-2 pr-1 text-right font-bold text-emerald-700">Rem</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-100">{products.map((p, index) => { const s = getStock(activeVehicleId, p.id); const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0); if (s.opening === 0 && s.added === 0 && s.sold === 0 && remaining === 0) return null; return (<tr key={p.id}><td className="py-3 pl-1 font-bold text-slate-400">{index + 1}</td><td className="py-3 pl-1 font-medium text-slate-800">{p.name}</td><td className="py-3 text-center text-slate-500">{s.opening}</td><td className="py-3 text-center font-medium text-blue-600">{s.added > 0 ? `+${s.added}` : '-'}</td><td className="py-3 text-center font-medium text-red-600">{s.sold > 0 ? s.sold : '-'}</td><td className="py-3 pr-1 text-right font-bold text-emerald-700">{remaining}</td></tr>); })}</tbody>
+                                        
+                                        <tfoot>
+                                            <tr className="border-t-2 border-slate-800 font-bold text-slate-900 bg-slate-50">
+                                                <td className="py-3 pl-1" colSpan="2">TOTAL</td>
+                                                <td className="py-3 text-center">{totals.opening}</td>
+                                                <td className="py-3 text-center text-blue-600">{totals.added}</td>
+                                                <td className="py-3 text-center text-red-600">{totals.sold}</td>
+                                                <td className="py-3 pr-1 text-right text-emerald-700">{totals.remaining}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                    <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center"><p className="text-xs text-slate-400">Generated by Hari Om Sales App</p><div className="text-right"><p className="font-bold text-slate-800">Signature</p><div className="h-8 w-24 border-b border-slate-300 mt-2"></div></div></div>
                                 </div>
-                                <table className="w-full text-left text-sm md:text-base border-collapse">
-                                    <thead><tr className="border-b-2 border-slate-200"><th className="py-2 pl-1 font-bold text-slate-400 w-8">#</th><th className="py-2 pl-1 font-bold text-slate-700">Item</th><th className="py-2 text-center font-bold text-slate-500">Open</th><th className="py-2 text-center font-bold text-blue-600">Add</th><th className="py-2 text-center font-bold text-red-600">Sold</th><th className="py-2 pr-1 text-right font-bold text-emerald-700">Rem</th></tr></thead>
-                                    <tbody className="divide-y divide-slate-100">{products.map((p, index) => { const s = getStock(activeVehicleId, p.id); const remaining = (s.opening || 0) + (s.added || 0) - (s.sold || 0); if (s.opening === 0 && s.added === 0 && s.sold === 0 && remaining === 0) return null; return (<tr key={p.id}><td className="py-3 pl-1 font-bold text-slate-400">{index + 1}</td><td className="py-3 pl-1 font-medium text-slate-800">{p.name}</td><td className="py-3 text-center text-slate-500">{s.opening}</td><td className="py-3 text-center font-medium text-blue-600">{s.added > 0 ? `+${s.added}` : '-'}</td><td className="py-3 text-center font-medium text-red-600">{s.sold > 0 ? s.sold : '-'}</td><td className="py-3 pr-1 text-right font-bold text-emerald-700">{remaining}</td></tr>); })}</tbody>
-                                    
-                                    {/* --- CHANGED: Added Total Footer --- */}
-                                    <tfoot>
-                                        <tr className="border-t-2 border-slate-800 font-bold text-slate-900 bg-slate-50">
-                                            <td className="py-3 pl-1" colSpan="2">TOTAL</td>
-                                            <td className="py-3 text-center">{totals.opening}</td>
-                                            <td className="py-3 text-center text-blue-600">{totals.added}</td>
-                                            <td className="py-3 text-center text-red-600">{totals.sold}</td>
-                                            <td className="py-3 pr-1 text-right text-emerald-700">{totals.remaining}</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                                <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center"><p className="text-xs text-slate-400">Generated by Hari Om Sales App</p><div className="text-right"><p className="font-bold text-slate-800">Signature</p><div className="h-8 w-24 border-b border-slate-300 mt-2"></div></div></div>
                             </div>
                         </div>
                     </div>
